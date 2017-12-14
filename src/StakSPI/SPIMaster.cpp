@@ -32,7 +32,7 @@ void SPIMaster::handler() {
             _receive();
             break;
         case RECEIVE_COMPLETE:
-            if(_status_confirm(RECEIVE_COMPLETE)){
+            if (_status_confirm(RECEIVE_COMPLETE)) {
                 status_t.status = STANDBY;
                 data_t.process_it = false;
                 MASTER_CALLBACK(data_t.buf);
@@ -45,10 +45,41 @@ void SPIMaster::handler() {
     }
 }
 
-bool SPIMaster::send(const char *message) {
+bool SPIMaster::send(uint8_t *message, size_t length) {
+    data_t.type = SEND_NEGOTIATION_UINT8;
     uint8_t retry = 0;
+
     while (++retry < RETRY_COUNT) {
-        if (status_t.status == STANDBY && _send(message))
+        if (status_t.status == STANDBY && _send(message, length))
+            return true;
+    }
+    return false;
+}
+
+bool SPIMaster::send16(uint16_t *message, size_t length) {
+    data_t.type = SEND_NEGOTIATION_UINT16;
+    uint8_t retry = 0;
+    uint8_t buffer[length];
+
+    for (int pos = 0; uint16_t i = *message; message++) {
+        buffer[pos++] = highByte(i);
+        buffer[pos++] = lowByte(i);
+    }
+
+    while (++retry < RETRY_COUNT) {
+        if (status_t.status == STANDBY && _send(buffer, length))
+            return true;
+    }
+    return false;
+}
+
+bool SPIMaster::send_char(const char *message, size_t length) {
+    data_t.type = SEND_NEGOTIATION_CHAR;
+    uint8_t retry = 0;
+    uint8_t buffer[length];
+    memcpy(buffer, message, length);
+    while (++retry < RETRY_COUNT) {
+        if (status_t.status == STANDBY && _send(buffer, length))
             return true;
     }
     return false;
@@ -58,7 +89,7 @@ bool SPIMaster::send(const char *message) {
  * private method
  **************************************************************/
 
-bool SPIMaster::_send(const char *message) {
+bool SPIMaster::_send(uint8_t *message, size_t length) {
 
     status_t.status = SEND_READY;
     if (!_status_confirm(SEND_READY)) {
@@ -66,11 +97,18 @@ bool SPIMaster::_send(const char *message) {
         return false;
     }
 
+    status_t.status = data_t.type;
+    if (!_status_confirm(data_t.type)) {
+        status_t.status = STANDBY;
+        return false;
+    }
+
     status_t.status = SEND_TRANSFER;
-    for (; char c = *message; message++) {
-        SPI.transfer(c);
+    for (int pos = 0; length > pos; pos++) {
+        SPI.transfer(message[pos]);
         delayMicroseconds(10);
     }
+    Serial.print("\n");
 
     status_t.status = SEND_COMPLETE;
     if (!_status_confirm(SEND_COMPLETE)) {

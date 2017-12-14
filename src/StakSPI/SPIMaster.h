@@ -15,18 +15,22 @@ class SPIMaster {
     } DEFINE;
 
     typedef enum {
-        STANDBY = 0x01,             //送受信可能
-        SEND_READY = 0x11,           //送信準備
-        SEND_TRANSFER = 0x12,       //送信中
-        SEND_COMPLETE = 0x13,       //送信完了
-        RECEIVE_READY = 0x21,        //受信準備
-        RECEIVE_TRANSFER = 0x22,    //受信中
-        RECEIVE_COMPLETE = 0x23,    //受信完了
+        STANDBY = '\1',             //送受信可能
+        SEND_READY = '\2',           //送信準備
+        SEND_NEGOTIATION_UINT8 = '\15',      //送信種別決定
+        SEND_NEGOTIATION_UINT16 = '\16',      //送信種別決定
+        SEND_NEGOTIATION_CHAR = '\17',      //送信種別決定
+        SEND_TRANSFER = '\6',       //送信中
+        SEND_COMPLETE = '\77',       //送信完了
+
+        RECEIVE_READY = '\11',        //受信準備
+        RECEIVE_TRANSFER = '\12',    //受信中
+        RECEIVE_COMPLETE = '\13',    //受信完了
     } STATUS;
 
     typedef enum {
-        SUCCESS = 0x01,             //成功
-        ERROR = 0x02,               //失敗
+        SUCCESS = '\20',             //成功
+        ERROR = '\21',               //失敗
     } RESPONSE;
 
     struct {
@@ -34,7 +38,8 @@ class SPIMaster {
     } status_t;
 
     struct {
-        char buf[1024];
+        STATUS type;
+        uint8_t buf[1024];
         volatile byte pos;
         volatile boolean process_it;
     } data_t;
@@ -44,14 +49,19 @@ public:
 
     void handler();
 
-    bool send(const char *message);
+    bool send(uint8_t *message, size_t length);
 
-    void MASTER_CALLBACK(char *message);
+    bool send16(uint16_t *message, size_t length);
+
+    bool send_char(const char *message, size_t length);
+
+    void MASTER_CALLBACK(const uint8_t *message);
 
 private:
     bool _status_confirm(STATUS status);
 
-    bool _send(const char *message);
+    bool _send(uint8_t *message, size_t length);
+
     void _receive();
 };
 
